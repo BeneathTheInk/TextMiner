@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+
+// Dependencies
+require("sugar");
+var fs = require("fs"),
+	path = require("path"),
+	_ = require("underscore"),
+	Promise = require("bluebird"),
+	Dictionary = require("../lib/dictionary"),
+	RedisStore = require("../stores/redis");
+
+// Some globals
+global.redis = require("redis").createClient();
+global.program = require("commander");
+
+// Get package.json to keep things DRY
+var pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf-8"));
+program.version(pkg.version);
+
+var store = new RedisStore({ client: redis }),
+	dict = new Dictionary({ store: store });
+
+function act(name) {
+	return function() {
+		var args = _.toArray(arguments),
+			cmd = args.pop();
+
+		args.push(dict);
+		
+		Promise
+			.try(function() {
+				return require(name).apply(cmd, args);
+			})
+			.catch(function(err) {
+				console.error(err.stack);
+				process.exit(1);
+			})
+			.finally(function() {
+				redis.quit();
+			});
+	}
+}
+
+program
+	.command('stats')
+	.description('Show basic dictionary stats.')
+	.action(act("../actions/stats"));
+
+program
+	.command('export')
+	.description('Export a list of most frequently used phrases.')
+	.option("-n, --limit <int>", "# of phrases to export.", parseInt, 1000)
+	.option("-o, --output <file>", "Name of the javascript file to save to.", "dictionary_export.js")
+	.option("--pretty", "Outputs each phrase on its own line along with the index and frequency in a comment.", false)
+	.option("--force", "Overwrite existing output file if necessary.", false)
+	.action(act("../actions/export"));
+
+program
+	.command('clean')
+	.description('Runs the storage clean up command.')
+	.action(act("../actions/clean"));
+
+program
+	.command('wikipedia <page>')
+	.description('Mine wikipedia for its most common phrases.')
+	.option('-n, --max-phrase-length [int]', 'Maximum # of words in a phrase.', parseInt, 5)
+	.option('-i, --interval [int]', 'Time to wait between requests in seconds.', parseInt)
+	.action(act("../miners/wikipedia"));
+
+program
+	.command('url <http://>')
+	.description('Use Readability API to extract revelant text.')
+	.option('-n, --max-phrase-length [int]', 'Maximum # of words in a phrase.', parseInt, 5)
+	.action(act("../miners/url"));
+
+
+program.parse(process.argv);

@@ -1,4 +1,5 @@
-var _ = require("underscore");
+var _ = require("underscore"),
+	Promise = require("bluebird");
 
 function MemoryStore(opts) {
 	opts = _.defaults(opts || {}, {
@@ -10,10 +11,9 @@ function MemoryStore(opts) {
 	this.sorted = [];
 }
 
-MemoryStore.prototype.add = function(str, freq, done) {
+MemoryStore.prototype.add = function(str, freq) {
 	var self = this;
-
-	_.defer(function() {
+	return new Promise(function(resolve, reject) {
 		if (self.scores[str] == null) self.scores[str] = 0;
 		self.scores[str] += freq;
 
@@ -25,31 +25,38 @@ MemoryStore.prototype.add = function(str, freq, done) {
 		});
 		self.sorted.splice(newIndex, 0, str);
 
-		done();
+		resolve();
 	});
-
-	return this;
 }
 
-MemoryStore.prototype.get = function(str, done) {
+MemoryStore.prototype.get = function(str) {
 	var self = this;
-
-	_.defer(function() {
-		if (self.scores[str] == null) done(null, this.options.default_score);
-		else done(null, self.scores[str]);
+	return new Promise(function(resolve, reject) {
+		if (self.scores[str] == null) resolve(this.options.default_score);
+		else resolve(self.scores[str]);
 	});
-
-	return this;
 }
 
-MemoryStore.prototype.indexOf = function(str, done) {
+MemoryStore.prototype.indexOf = function(str) {
 	var self = this;
-
-	_.defer(function() {
-		done(null, self.sorted.indexOf(str));
+	return new Promise(function(resolve, reject) {
+		resolve(self.sorted.indexOf(str));
 	});
-	
-	return this;
+}
+
+MemoryStore.prototype.length = function() {
+	var self = this;
+	return new Promise(function(resolve, reject) {
+		resolve(self.sorted.length);
+	});
+}
+
+MemoryStore.prototype.slice = function(start, end) {
+	var self = this;
+	return new Promise(function(resolve, reject) {
+		if (end == null) end = void(0);
+		resolve(self.sorted.slice(start, end));
+	});
 }
 
 module.exports = MemoryStore;

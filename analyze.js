@@ -8,7 +8,7 @@ var fs = require("fs"),
 	Dictionary = require("./dictionary");
 
 var store = new RedisStore({ client: redis }),
-	grams = new Dictionary({ store: store }),
+	grams = new Dictionary(),
 	text, words, phrases, maxLength, timer, progress;
 
 program
@@ -55,45 +55,36 @@ async.whilst(function() {
 	console.log("Done. That took " + ((new Date - timer) / 1000).round(2) + "s.")
 
 	console.log();
-	process.stdout.write("Cleaning storage...");
-	store.clean(function(err, count) {
-		if (err != null) return console.error(err);
+	console.log("Dictionary Stats:");
 
-		if (count > 0) process.stdout.write(" " + count.format() + " phrases removed for being too uncommon.");
-		console.log();
-
-		console.log();
-		console.log("Dictionary Stats:");
-
-		async.series([
-			function(_cb) {
-				grams.length(function(err, length) {
-					if (err != null) return _cb(err);
-					console.log("  Size: " + length.format() + " phrases");
+	async.series([
+		function(_cb) {
+			grams.length(function(err, length) {
+				if (err != null) return _cb(err);
+				console.log("  Size: " + length.format() + " phrases");
+				_cb();
+			});
+		},
+		function(_cb) {
+			grams.slice(-5, function(err, phrases) {
+				if (err != null) return _cb(err);
+				phrases.reverse();
+				
+				async.map(phrases, function(phrase, cb) {
+					grams.get(phrase, function(err, freq) {
+						cb(err, phrase + " (" + freq + ")");
+					});
+				}, function(err, res) {
+					if (err != null) _cb(err);
+					console.log("  Most Frequent: " + res.join(", "));
 					_cb();
 				});
-			},
-			function(_cb) {
-				grams.slice(-5, function(err, phrases) {
-					if (err != null) return _cb(err);
-					phrases.reverse();
-					
-					async.map(phrases, function(phrase, cb) {
-						grams.get(phrase, function(err, freq) {
-							cb(err, phrase + " (" + freq + ")");
-						});
-					}, function(err, res) {
-						if (err != null) _cb(err);
-						console.log("  Most Frequent: " + res.join(", "));
-						_cb();
-					});
-				});
-			}
-		], function(err) {
-			redis.quit();
-			if (err != null) return console.error(err);
-			console.log();
-		});
+			});
+		}
+	], function(err) {
+		redis.quit();
+		if (err != null) return console.error(err);
+		console.log();
 	});
 
 });
