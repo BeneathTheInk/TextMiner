@@ -20,6 +20,11 @@ program.version(pkg.version);
 var store = new RedisStore({ client: redis }),
 	dict = new Dictionary({ store: store });
 
+program.option('-k, --key <redis_key>', "Redis key name for storing phrases.");
+program.on("key", function(val) {
+	if (!_.isEmpty(val)) store.key = val;
+});
+
 function act(name) {
 	return function() {
 		var args = _.toArray(arguments),
@@ -73,5 +78,11 @@ program
 	.option('-n, --max-phrase-length [int]', 'Maximum # of words in a phrase.', parseInt, 5)
 	.action(act("../miners/url"));
 
+program
+	.command('medium <name>')
+	.description('Extract phrases from medium.com articles in <name> collection.')
+	.option('-n, --max-phrase-length [int]', 'Maximum # of words in a phrase.', parseInt, 5)
+	.option('-i, --interval [int]', 'Time to wait between requests in seconds.', parseInt)
+	.action(act("../miners/medium"));
 
 program.parse(process.argv);
